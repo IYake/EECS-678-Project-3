@@ -168,10 +168,10 @@ void buddy_free(void *addr)
 		list_del_init(&buddy->list);
 		if (buddy < curr_page)
 			curr_page = buddy;
-	}
 
-	curr_page->order = i;
-	list_add(&curr_page->list, &free_area[i]);
+		curr_page->order = i;
+		list_add(&curr_page->list, &free_area[i]);
+	}
 }
 
 /**
@@ -195,10 +195,11 @@ void buddy_dump()
 
 void split(page_t* page, int i, int order){
 	if (i != order){
-		page_t* buddy = &g_pages[ADDR_TO_PAGE(BUDDY_ADDR(page->mem,(i-1)))];
-		buddy->order = i-1;
-		list_add(&(buddy->list),&free_area[i-1]);
-		split(page,i-1,order);
+		int new_page_order = i-1;
+		page_t* buddy = &g_pages[ADDR_TO_PAGE(BUDDY_ADDR(page->mem,new_page_order))];
+		buddy->order = new_page_order;
+		list_add(&(buddy->list),&free_area[new_page_order]);
+		split(page,new_page_order,order);
 	}
 }
 
@@ -210,5 +211,3 @@ int orderFor(int x){
  }
  return -1;
 }
-
-\\
