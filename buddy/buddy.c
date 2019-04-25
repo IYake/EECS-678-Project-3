@@ -51,6 +51,9 @@
 typedef struct {
 	struct list_head list;
 	/* TODO: DECLARE NECESSARY MEMBER VARIABLES */
+	int order;
+	int index;
+	char* mem;
 } page_t;
 
 /**************************************************************************
@@ -68,7 +71,11 @@ page_t g_pages[(1<<MAX_ORDER)/PAGE_SIZE];
 /**************************************************************************
  * Public Function Prototypes
  **************************************************************************/
+int nextHighestTwo(int x);
 
+int orderFor(int x);
+
+void split(page_t* page, int i, int order);
 /**************************************************************************
  * Local Functions
  **************************************************************************/
@@ -82,6 +89,10 @@ void buddy_init()
 	int n_pages = (1<<MAX_ORDER) / PAGE_SIZE;
 	for (i = 0; i < n_pages; i++) {
 		/* TODO: INITIALIZE PAGE STRUCTURES */
+		//-1 order = free block
+		g_pages[i].order = -1;
+		g_pages[i].index = i;
+		g_pages[i].mem = PAGE_TO_ADDR(i);
 	}
 
 	/* initialize freelist */
@@ -107,9 +118,23 @@ void buddy_init()
  * @param size size in bytes
  * @return memory block address
  */
+ 
 void *buddy_alloc(int size)
 {
 	/* TODO: IMPLEMENT THIS FUNCTION */
+	int order = orderFor(size);
+	if (order != -1){
+		for (int i = order; i < MAX_ORDER; i++){
+			if (!list_empty(&free_area[i])){
+				//allocate to appropriate mem block
+				page_t* page = list_entry(free_area[i].next,page_t,list);
+				list_del_init(&(page->list));
+				split(page,i,order);
+				page->order = order;
+				return ((void*) (page->mem));
+			}
+		}
+	}
 	return NULL;
 }
 
@@ -125,6 +150,11 @@ void *buddy_alloc(int size)
 void buddy_free(void *addr)
 {
 	/* TODO: IMPLEMENT THIS FUNCTION */
+	page_t* curr_page = &g_pages[ADDR_TO_PAGE(addr)];
+	
+	for (int i = curr_page->order; i < MAX_ORDER; i++){
+		
+	}
 }
 
 /**
@@ -144,4 +174,30 @@ void buddy_dump()
 		printf("%d:%dK ", cnt, (1<<o)/1024);
 	}
 	printf("\n");
+}
+
+void split(page_t* page, int i, int order){
+	if (i != order){
+		page_t* buddy = &g_pages[ADDR_TO_PAGE(BUDDY_ADDR(page->mem,(i-1)))];
+		buddy->order = i-1;
+		list_add(&(buddy->list),&free_area[i-1]);
+		split(page,i-1,order);
+	}
+}
+
+int orderFor(int x){
+ for (int order = MIN_ORDER; order <= MAX_ORDER; order++){
+	 if (1 << order >= x){
+		 return order;
+	 } 
+ }
+ return -1;
+}
+
+int nextHighestTwo(int x){
+ int ans = 1;
+ while (ans < x){
+	 ans *= 2;
+ }
+ return ans;
 }
