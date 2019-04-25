@@ -91,7 +91,6 @@ void buddy_init()
 		/* TODO: INITIALIZE PAGE STRUCTURES */
 		//-1 order = free block
 		g_pages[i].order = -1;
-		g_pages[i].index = i;
 		g_pages[i].mem = PAGE_TO_ADDR(i);
 	}
 
@@ -118,7 +117,7 @@ void buddy_init()
  * @param size size in bytes
  * @return memory block address
  */
- 
+
 void *buddy_alloc(int size)
 {
 	/* TODO: IMPLEMENT THIS FUNCTION */
@@ -151,10 +150,28 @@ void buddy_free(void *addr)
 {
 	/* TODO: IMPLEMENT THIS FUNCTION */
 	page_t* curr_page = &g_pages[ADDR_TO_PAGE(addr)];
-	
+	page_t* buddy = &g_pages[ADDR_TO_PAGE(BUDDY_ADDR(curr_page->mem, curr_page->order))];
+
+
+	int is_free = 0;
 	for (int i = curr_page->order; i < MAX_ORDER; i++){
-		
+		struct list_head *pos;
+
+		list_for_each(pos, &free_area[i]) {
+			if (list_entry(pos, page_t, list) == buddy)
+				is_free = 1;
+		}
+
+		if(!is_free)
+			break;
+
+		list_del_init(&buddy->list);
+		if (buddy < curr_page)
+			curr_page = buddy;
 	}
+
+	curr_page->order = i;
+	list_add(&curr_page->list, &free_area[i]);
 }
 
 /**
@@ -189,15 +206,9 @@ int orderFor(int x){
  for (int order = MIN_ORDER; order <= MAX_ORDER; order++){
 	 if (1 << order >= x){
 		 return order;
-	 } 
+	 }
  }
  return -1;
 }
 
-int nextHighestTwo(int x){
- int ans = 1;
- while (ans < x){
-	 ans *= 2;
- }
- return ans;
-}
+\\
