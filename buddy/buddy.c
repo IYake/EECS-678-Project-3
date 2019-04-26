@@ -172,13 +172,14 @@ void buddy_free(void *addr)
 	page_t* curr_page = &g_pages[ADDR_TO_PAGE(addr)];
 	page_t* buddy = &g_pages[ADDR_TO_PAGE(BUDDY_ADDR(curr_page->mem, curr_page->order))];
 	struct list_head *pos;
-
+	page_t* temp = NULL;
 	int index = curr_page->index;
 	for (int i = curr_page->order; i <= MAX_ORDER; i++){
 		pos = NULL;
 		buddy = &g_pages[ADDR_TO_PAGE(BUDDY_ADDR(curr_page->mem, i))];
 		//search through all blocks in order i of the free area
 		list_for_each(pos, &free_area[i]) {
+			temp = list_entry(free_area[i].next,page_t,list);
 			if(pos == NULL)
 			{
 				break;
@@ -188,11 +189,10 @@ void buddy_free(void *addr)
 			}
 		}
 		//if order has no blocks or if there isn't a buddy
-		if(pos == NULL || pos != buddy)
+		if(pos == NULL || temp != buddy)
 		{
 			g_pages[index].order = -1;
-			list_add(&g_pages[index], &free_area[i]);
-			// curr_page->order = -1;
+			list_add(&g_pages[index].list, &free_area[i]);
 			return;
 		}
 		if (buddy->mem < curr_page->mem)
