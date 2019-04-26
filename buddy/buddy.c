@@ -53,7 +53,7 @@ typedef struct {
 	/* TODO: DECLARE NECESSARY MEMBER VARIABLES */
 	int order;
 	int index;
-	char* mem;
+	void* mem;
 } page_t;
 
 /**************************************************************************
@@ -91,6 +91,7 @@ void buddy_init()
 		/* TODO: INITIALIZE PAGE STRUCTURES */
 		//-1 order = free block
 		g_pages[i].order = -1;
+		g_pages[i].index = i;
 		g_pages[i].mem = PAGE_TO_ADDR(i);
 	}
 
@@ -123,18 +124,37 @@ void *buddy_alloc(int size)
 	/* TODO: IMPLEMENT THIS FUNCTION */
 	int order = orderFor(size);
 	if (order != -1){
-		for (int i = order; i < MAX_ORDER; i++){
+		for (int i = order; i <= MAX_ORDER; i++){
 			if (!list_empty(&free_area[i])){
-				//allocate to appropriate mem block
 				page_t* page = list_entry(free_area[i].next,page_t,list);
+				//allocate to appropriate mem block
+				if( order == i)
+				{
 				list_del_init(&(page->list));
-				split(page,i,order);
+				//split(page,i,order);
 				page->order = order;
-				return ((void*) (page->mem));
+				return (page->mem);
+				}
+				else {
+					list_del_init(&(page->list));
+					split(page,i,order);
+					page->order = order;
+					return (page->mem);
+				}
 			}
 		}
 	}
 	return NULL;
+}
+
+void split(page_t* page, int i, int order){
+	if (i != order){
+		int new_page_order = i-1;
+		page_t* buddy = &g_pages[ADDR_TO_PAGE(BUDDY_ADDR(page->mem,new_page_order))];
+		buddy->order = new_page_order;
+		list_add(&(buddy->list),&free_area[new_page_order]);
+		split(page,new_page_order,order);
+	}
 }
 
 /**
@@ -151,26 +171,41 @@ void buddy_free(void *addr)
 	/* TODO: IMPLEMENT THIS FUNCTION */
 	page_t* curr_page = &g_pages[ADDR_TO_PAGE(addr)];
 	page_t* buddy = &g_pages[ADDR_TO_PAGE(BUDDY_ADDR(curr_page->mem, curr_page->order))];
-
+	struct list_head *pos;
 
 	int is_free = 0;
+	int index = curr_page->index;
 	for (int i = curr_page->order; i < MAX_ORDER; i++){
-		struct list_head *pos;
+		pos = NULL;
 
 		list_for_each(pos, &free_area[i]) {
-			if (list_entry(pos, page_t, list) == buddy)
+			if(pos == NULL)
+			{
+				break;
+			}
+			if (list_entry(pos, page_t, list) == buddy) {
 				is_free = 1;
+				break;
+			}
+		}
+		if(pos == NULL)
+		{
+			list_add(&g_pages[index], &free_area[i]);
+			curr_page->order = -1;
+			return;
+		}
+		else if( pos != buddy)
+		{
+			list_add(&g_pages[index], &free_area[i]);
+			curr_page->order = -1;
+			return;
+		}
+		if (buddy->mem < curr_page->mem)
+		{
+			curr_page = buddy;
 		}
 
-		if(!is_free)
-			break;
-
 		list_del_init(&buddy->list);
-		if (buddy < curr_page)
-			curr_page = buddy;
-
-		curr_page->order = i;
-		list_add(&curr_page->list, &free_area[i]);
 	}
 }
 
@@ -191,16 +226,6 @@ void buddy_dump()
 		printf("%d:%dK ", cnt, (1<<o)/1024);
 	}
 	printf("\n");
-}
-
-void split(page_t* page, int i, int order){
-	if (i != order){
-		int new_page_order = i-1;
-		page_t* buddy = &g_pages[ADDR_TO_PAGE(BUDDY_ADDR(page->mem,new_page_order))];
-		buddy->order = new_page_order;
-		list_add(&(buddy->list),&free_area[new_page_order]);
-		split(page,new_page_order,order);
-	}
 }
 
 int orderFor(int x){
